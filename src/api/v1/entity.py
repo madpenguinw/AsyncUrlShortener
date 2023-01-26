@@ -1,16 +1,15 @@
-import coloredlogs
 import logging
-
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Response, Request, status
+import coloredlogs
+from fastapi import (APIRouter, Depends, HTTPException, Request, Response,
+                     status)
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api_logic.logic import get_client_address, shortener
 from db.db import get_session
-from logic.url_shortener import shortener
-from logic.click import create_click_obj, get_client_address, add_click
 from schemas import entity as model_schema
-from services.entity import url_crud
+from services.entity import click_crud, url_crud
 
 router = APIRouter()
 
@@ -83,8 +82,9 @@ async def get_url(
             status_code=status.HTTP_404_NOT_FOUND, detail='Url not found'
         )
 
-    await add_click(
-        url_obj=url_obj,
+    await url_crud.update(
+        id=url_id,
+        field='clicks',
         db=db
     )
 
@@ -97,11 +97,8 @@ async def get_url(
         request=request
     )
 
-    await create_click_obj(
-        url_id=url_obj.id,
-        client=client,
-        db=db,
-    )
+    await click_crud.create(
+        url_id=url_id, client=client, db=db)
 
     logger.debug(
         'Click object with short url "%(short_url)s" was created',

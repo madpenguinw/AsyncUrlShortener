@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Generic, Type, TypeVar
 
 from fastapi.encoders import jsonable_encoder
@@ -12,7 +13,7 @@ CreateSchemaType = TypeVar('CreateSchemaType', bound=BaseModel)
 UpdateSchemaType = TypeVar('UpdateSchemaType', bound=BaseModel)
 
 
-class Repository:
+class CRUD:
 
     def get(self, *args, **kwargs):
         raise NotImplementedError
@@ -27,8 +28,8 @@ class Repository:
         raise NotImplementedError
 
 
-class RepositoryDB(
-    Repository, Generic[ModelType, CreateSchemaType, UpdateSchemaType]
+class UrlCRUD(
+    CRUD, Generic[ModelType, CreateSchemaType, UpdateSchemaType]
 ):
 
     def __init__(self, model: Type[ModelType]):
@@ -42,25 +43,16 @@ class RepositoryDB(
 
         if check:
             statement = select(self._model).where(
-                self._model.full_url == value)
+                self._model.full_url == value and self._model.is_active)
         elif short_url:
             statement = select(self._model).where(
                 self._model.short_url == value and self._model.is_active)
         else:
-            statement = select(self._model).where(self._model.id == value)
+            statement = select(self._model).where(
+                self._model.id == value and self._model.is_active)
         results = await db.execute(statement=statement)
 
         return results.scalar_one_or_none()
-
-    async def get_multi(
-        self, db: AsyncSession, *, skip=0, limit=100
-    ) -> list[ModelType]:
-        """Get all objects"""
-
-        statement = select(self._model).offset(skip).limit(limit)
-        results = await db.execute(statement=statement)
-
-        return results.scalars().all()
 
     async def create(
         self,
@@ -85,23 +77,66 @@ class RepositoryDB(
         return db_obj
 
     async def update(
-            self,
-            db: AsyncSession,
-            *,
-            field: str,
-            value: int | bool,
-            id: int
+        self,
+        id: int,
+        field: str,
+        db: AsyncSession,
+        value: bool = False,
     ) -> ModelType:
-        """Update the object"""
+        """Update the Url object."""
 
-        statement = select(self._model).where(self._model.id == id)
+        statement = select(self._model).where(
+            self._model.id == id and self._model.is_active)
         results = await db.execute(statement=statement)
-        db_obj = results.scalar_one_or_none()
+        url_obj = results.scalar_one_or_none()
 
-        setattr(db_obj, field, value)
+        if not value:
+            # case then it is needed to increment 'click' value
+            # another case is situation with fake 'deletion' of Url object
+            value = url_obj.clicks + 1
 
-        db.add(db_obj)
+        setattr(url_obj, field, value)
+
+        db.add(url_obj)
         await db.commit()
-        await db.refresh(db_obj)
+        await db.refresh(url_obj)
 
-        return db_obj
+        return url_obj
+
+
+class ClickCRUD(
+    CRUD, Generic[ModelType, CreateSchemaType]
+):
+
+    def __init__(self, model: Type[ModelType]):
+        self._model = model
+
+    async def get_multi(
+        self, url_id: int, db: AsyncSession, skip=0, limit=100
+    ) -> list[ModelType]:
+        """Get all (or as many as it nedeed) Click objects"""
+
+        statement = select(self._model).where(
+            self._model.url_id == url_id).offset(skip).limit(limit)
+        results = await db.execute(statement=statement)
+
+        return results.scalars().all()
+
+    async def create(
+        self,
+        url_id: int,
+        client: str,
+        db: AsyncSession
+    ) -> None:
+        """Create the Click object"""
+
+        click_obj: Type[ModelType] = self._model(
+            url_id=url_id,
+            date=datetime.now(),
+            client=client
+        )
+
+        db.add(click_obj)
+        await db.commit()
+        await db.refresh(click_obj)
+        return
