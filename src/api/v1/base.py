@@ -1,16 +1,13 @@
 import coloredlogs
 import logging
 
-from datetime import datetime
-from fastapi import APIRouter, Depends, Response, Request, status
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, Response, Request, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from schemas import entity as model_schema
 
-from core.logger import LOGGING
 from db.db import get_session
-from models.entity import Click
-from services.entity import url_crud, click_crud
+from logic.click import create_click_obj, get_client_address, add_click
+
+from services.entity import url_crud
 
 from .entity import router
 
@@ -24,7 +21,7 @@ coloredlogs.install(level='DEBUG')
 
 @local_router.get(
     '/{short_url}',
-    response_class=RedirectResponse
+    status_code=status.HTTP_307_TEMPORARY_REDIRECT
 )
 async def url_following(
     short_url: str,
@@ -33,61 +30,56 @@ async def url_following(
     db: AsyncSession = Depends(get_session),
 ):
     """
-    Get short url and connect user to the
+    Get short url and redirect user to the
     needed resource using full url from db. \n
     This function doesn't work from Swagger.
     """
 
-    full_url = await url_crud.get(
+    url_obj = await url_crud.get(
         db=db, value=short_url, short_url=True)
 
-    if full_url:
-        clicks = full_url.clicks + 1
-        setattr(full_url, 'clicks', clicks)
-
-        db.add(full_url)
-        await db.commit()
-        await db.refresh(full_url)
-
-        logger.debug(
-            'Short URL "%(short_url)s" was used',
-            {'short_url': short_url}
-        )
-
-        client: str = request.client.host + ':' + \
-            str(request.client.port)
-
-        click_obj = Click(
-            url_id=full_url.id,
-            date=datetime.now(),
-            client=client
-        )
-
-        db.add(click_obj)
-        await db.commit()
-        await db.refresh(click_obj)
-
-        logger.debug(
-            'Click object with short url "%(short_url)s" was created',
-            {'short_url': short_url}
-        )
-
-        logger.debug(
-            'Client "%(client)s" was redirected',
-            {'client': client}
-        )
-
-        return RedirectResponse(full_url.full_url)
-
-    else:
+    if not url_obj:
         logger.error(
             'Short URL "%(short_url)s" was not found in database',
             {'short_url': short_url}
         )
-        response.status_code = status.HTTP_404_NOT_FOUND
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail='Url not found'
+        )
 
-        return
+    await add_click(
+        url_obj=url_obj,
+        db=db
+    )
 
+    logger.debug(
+        'Short URL "%(short_url)s" was used',
+        {'short_url': short_url}
+    )
+
+    client = get_client_address(
+        request=request
+    )
+
+    await create_click_obj(
+        url_id=url_obj.id,
+        client=client,
+        db=db,
+    )
+
+    logger.debug(
+        'Click object with short url "%(short_url)s" was created',
+        {'short_url': short_url}
+    )
+
+    response.headers['Location'] = url_obj.full_url
+
+    logger.debug(
+        'Client "%(client)s" was redirected',
+        {'client': client}
+    )
+
+    return
 
 api_router.include_router(local_router, tags=['Follow The Short Url'])
 

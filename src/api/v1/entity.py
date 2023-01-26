@@ -3,11 +3,12 @@ import logging
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.db import get_session
 from logic.url_shortener import shortener
+from logic.click import create_click_obj, get_client_address, add_click
 from schemas import entity as model_schema
 from services.entity import url_crud
 
@@ -29,7 +30,7 @@ async def create_short_url(
     response: Response
 ) -> Any:
     """
-    Gets full url and creates its short version.
+    Create short version of url.
     """
 
     check_url = await url_crud.get(
@@ -55,6 +56,50 @@ async def create_short_url(
 
     return url
 
+
+@router.get(
+    '/{id}',
+    status_code=status.HTTP_307_TEMPORARY_REDIRECT
+)
+async def get_url(
+    *,
+    db: AsyncSession = Depends(get_session),
+    id: int,
+    response: Response,
+    request: Request
+) -> Any:
+    """
+    Get short url by ID.
+    """
+
+    url_obj = await url_crud.get(db=db, value=id)
+    if not url_obj:
+        logger.error(
+            'URL with id="%(id)s" was not found in database',
+            {'id': id}
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail='Url not found'
+        )
+    response.headers['Location'] = url_obj.full_url
+
+    await add_click(
+        url_obj=url_obj,
+        db=db
+    )
+
+    client = get_client_address(
+        request=request
+    )
+
+    await create_click_obj(
+        url_id=url_obj.id,
+        client=client,
+        db=db,
+    )
+
+    return
+
 # @router.post('/', response_model=list[model_schema.Entity])
 # async def read_entities(
 #     db: AsyncSession = Depends(get_session), skip: int = 0, limit: int = 100
@@ -67,22 +112,7 @@ async def create_short_url(
 #     return entities
 
 
-# @router.get("/{id}", response_model=entity_schema.Entity)
-# async def read_entity(
-#     *,
-#     db: AsyncSession = Depends(get_session),
-#     id: int,
-# ) -> Any:
-#     """
-#     Get by ID.
-#     """
-#     # get entity from db
-#     entity = await entity_crud.get(db=db, id=id)
-#     if not entity:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND, detail="Item not found"
-#         )
-#     return entity
+
 
 # @router.put('/{id}', response_model=entity_schema.Entity)
 # async def update_entity(
