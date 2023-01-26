@@ -58,34 +58,39 @@ async def create_short_url(
 
 
 @router.get(
-    '/{id}',
+    '/{url_id}',
     status_code=status.HTTP_307_TEMPORARY_REDIRECT
 )
 async def get_url(
     *,
     db: AsyncSession = Depends(get_session),
-    id: int,
+    url_id: int,
     response: Response,
     request: Request
 ) -> Any:
     """
-    Get short url by ID.
+    Get short url by ID and redirect. \n
+    This function doesn't work from Swagger.
     """
 
-    url_obj = await url_crud.get(db=db, value=id)
+    url_obj = await url_crud.get(db=db, value=url_id)
     if not url_obj:
         logger.error(
-            'URL with id="%(id)s" was not found in database',
-            {'id': id}
+            'URL with id="%(url_id)s" was not found in database',
+            {'url_id': url_id}
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail='Url not found'
         )
-    response.headers['Location'] = url_obj.full_url
 
     await add_click(
         url_obj=url_obj,
         db=db
+    )
+
+    logger.debug(
+        'Short URL "%(short_url)s" was used',
+        {'short_url': url_obj.short_url}
     )
 
     client = get_client_address(
@@ -98,6 +103,18 @@ async def get_url(
         db=db,
     )
 
+    logger.debug(
+        'Click object with short url "%(short_url)s" was created',
+        {'short_url': url_obj.short_url}
+    )
+
+    response.headers['Location'] = url_obj.full_url
+
+    logger.debug(
+        'Client "%(client)s" was redirected',
+        {'client': client}
+    )
+
     return
 
 # @router.post('/', response_model=list[model_schema.Entity])
@@ -108,7 +125,7 @@ async def get_url(
 #     Retrieve entities.
 #     """
 #     # get entities from db
-#     entities = await entity_crud.get_multi(db=db, skip=skip, limit=limit)
+#     entities = await model_crud.get_multi(db=db, skip=skip, limit=limit)
 #     return entities
 
 

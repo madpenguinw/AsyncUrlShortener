@@ -81,7 +81,7 @@ async def url_following(
 
     return
 
-api_router.include_router(local_router, tags=['Follow The Short Url'])
+api_router.include_router(local_router, tags=['Redirect using short url'])
 
 
 # class CollectionUrl(BaseModel):
