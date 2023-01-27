@@ -2,14 +2,14 @@ import logging
 from typing import Any
 
 import coloredlogs
-from fastapi import (APIRouter, Depends, HTTPException, Request, Response,
-                     status)
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_logic.logic import get_client_address, shortener
 from db.db import get_session
-from schemas import entity as model_schema
+from schemas.entity import UrlBase, Url
 from services.entity import click_crud, url_crud
+
 
 router = APIRouter()
 
@@ -19,13 +19,13 @@ coloredlogs.install(level='DEBUG')
 
 @router.post(
     '/',
-    response_model=model_schema.Url,
+    response_model=Url,
     status_code=status.HTTP_201_CREATED
 )
 async def create_short_url(
     *,
     db: AsyncSession = Depends(get_session),
-    url_in: model_schema.UrlBase,
+    url_in: UrlBase,
     response: Response
 ) -> Any:
     """
@@ -66,7 +66,7 @@ async def get_url(
     url_id: int,
     response: Response,
     request: Request
-) -> Any:
+) -> None:
     """
     Get short url by ID and redirect. \n
     This function doesn't work from Swagger.
@@ -114,61 +114,37 @@ async def get_url(
 
     return
 
-# @router.post('/', response_model=list[model_schema.Entity])
-# async def read_entities(
-#     db: AsyncSession = Depends(get_session), skip: int = 0, limit: int = 100
-# ) -> Any:
-#     """
-#     Retrieve entities.
-#     """
-#     # get entities from db
-#     entities = await model_crud.get_multi(db=db, skip=skip, limit=limit)
-#     return entities
 
+@router.get(
+    '/{url_id}/status',
+    status_code=status.HTTP_200_OK,
+    response_model=list | Url
+)
+async def get_url_info(
+    url_id: int,
+    db: AsyncSession = Depends(get_session),
+    full_info: bool = False,
+    max_result: int = 10,
+    offset: int = 0
+) -> Any:
+    """
+    Get URL usage status and Click objects.
+    """
 
+    url_obj = await url_crud.get(db=db, value=url_id)
+    if not url_obj:
+        logger.error(
+            'URL with id="%(url_id)s" was not found in database',
+            {'url_id': url_id}
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail='Url not found'
+        )
 
+    if full_info:
+        # get clicks from db
+        clicks = await click_crud.get_multi(
+            url_id=url_obj.id, db=db, skip=offset, limit=max_result)
+        return [url_obj, clicks]
 
-# @router.put('/{id}', response_model=entity_schema.Entity)
-# async def update_entity(
-#     *,
-#     db: AsyncSession = Depends(get_session),
-#     id: int,
-#     entity_in: entity_schema.EntityUpdate,
-# ) -> Any:
-#     """
-#     Update an entity.
-#     """
-#     # get entity from db
-#     entity = await entity_crud.get(db=db, id=id)
-
-#     if not entity:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND, detail='Item not found')
-
-#     # update entity in db
-#     entity_out = await entity_crud.update(db=db, db_obj=entity, obj_in=entity_in)
-
-#     return entity_out
-
-
-# @router.delete('/{id}', response_model=entity_schema.Entity)
-# async def delete_entity(
-#     *, db: AsyncSession = Depends(get_session), id: int
-# ) -> Any:
-#     """
-#     Delete an entity.
-#     """
-#     entity = {}
-#     # get entity from db
-#     entity = await entity_crud.get(db=db, id=id)
-
-#     if not entity:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail='Item not found'
-#         )
-
-#     # remove item from db
-#     entity = await entity_crud.delete(db=db, id=id)
-
-#     return entity
+    return url_obj

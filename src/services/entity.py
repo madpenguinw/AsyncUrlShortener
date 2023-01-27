@@ -12,5 +12,6 @@ class RepositoryUrl(UrlCRUD[UrlModel, UrlBase, Url]):
 class RepositoryClick(ClickCRUD[ClickModel, ClickInfo]):
     pass
 
+
 url_crud = RepositoryUrl(UrlModel)
 click_crud = RepositoryClick(ClickModel)
