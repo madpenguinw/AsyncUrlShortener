@@ -60,9 +60,9 @@ async def url_following(
     db: AsyncSession = Depends(get_session),
 ):
     """
-    Get short url and redirect user to the
-    needed resource using full url from db. \n
-    This function doesn't work from Swagger.
+    Get short URL and redirect user to the
+    needed resource using full URL from db. \n
+    One can not see the redirection from Swagger.
     """
 
     url_obj = await url_crud.get(
@@ -74,7 +74,17 @@ async def url_following(
             {'short_url': short_url}
         )
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail='Url not found'
+            status_code=status.HTTP_404_NOT_FOUND, detail='URL not found'
+        )
+
+    elif not url_obj.is_active:
+        logger.error(
+            'Attempt to get deleted URL with ID="%(id)s"',
+            {'id': url_obj.id}
+        )
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail='URL was deleted from the database.'
         )
 
     await url_crud.update(
@@ -96,7 +106,7 @@ async def url_following(
         url_id=url_obj.id, client=client, db=db)
 
     logger.debug(
-        'Click object with short url "%(short_url)s" was created',
+        'Click object with short URL "%(short_url)s" was created',
         {'short_url': short_url}
     )
 

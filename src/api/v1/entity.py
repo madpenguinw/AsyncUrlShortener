@@ -29,7 +29,7 @@ async def create_short_url(
     response: Response
 ) -> Any:
     """
-    Create short version of url.
+    Create short version of URL.
     """
 
     check_url = await url_crud.get(
@@ -68,18 +68,29 @@ async def get_url(
     request: Request
 ) -> None:
     """
-    Get short url by ID and redirect. \n
-    This function doesn't work from Swagger.
+    Get short URL by ID and redirect. \n
+    One can not see the redirection from Swagger.
     """
 
     url_obj = await url_crud.get(db=db, value=url_id)
+
     if not url_obj:
         logger.error(
-            'URL with id="%(url_id)s" was not found in database',
+            'URL with ID="%(url_id)s" was not found in DB',
             {'url_id': url_id}
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail='Url not found'
+        )
+
+    elif not url_obj.is_active:
+        logger.error(
+            'Attempt to get deleted URL with ID="%(url_id)s"',
+            {'url_id': url_id}
+        )
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail='URL was deleted from the database.'
         )
 
     await url_crud.update(
@@ -101,7 +112,7 @@ async def get_url(
         url_id=url_id, client=client, db=db)
 
     logger.debug(
-        'Click object with short url "%(short_url)s" was created',
+        'Click object with short URL "%(short_url)s" was created',
         {'short_url': url_obj.short_url}
     )
 
@@ -132,13 +143,24 @@ async def get_url_info(
     """
 
     url_obj = await url_crud.get(db=db, value=url_id)
+
     if not url_obj:
         logger.error(
-            'URL with id="%(url_id)s" was not found in database',
+            'URL with ID="%(url_id)s" was not found in database',
             {'url_id': url_id}
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail='Url not found'
+        )
+
+    elif not url_obj.is_active:
+        logger.error(
+            'Attempt to get deleted URL with ID="%(url_id)s"',
+            {'url_id': url_id}
+        )
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail='URL was deleted from the database.'
         )
 
     if full_info:
@@ -148,3 +170,41 @@ async def get_url_info(
         return [url_obj, clicks]
 
     return url_obj
+
+
+@router.delete(
+    '/{url_id}',
+    status_code=status.HTTP_200_OK
+)
+async def delete_url(
+    *,
+    db: AsyncSession = Depends(get_session),
+    url_id: int,
+) -> None:
+    """
+    Delete Url from database. \n
+    In fact, this is a fake.
+    """
+
+    url_obj = await url_crud.get(db=db, value=url_id)
+    if not url_obj:
+        logger.error(
+            'URL with ID="%(url_id)s" was not found in database',
+            {'url_id': url_id}
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail='URL not found'
+        )
+
+    await url_crud.update(
+        id=url_id,
+        field='is_active',
+        db=db
+    )
+
+    logger.debug(
+        'Short URL "%(short_url)s" was deleted',
+        {'short_url': url_obj.short_url}
+    )
+
+    return

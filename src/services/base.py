@@ -80,8 +80,7 @@ class UrlCRUD(
         self,
         id: int,
         field: str,
-        db: AsyncSession,
-        value: bool = False,
+        db: AsyncSession
     ) -> ModelType:
         """Update the Url object."""
 
@@ -90,10 +89,12 @@ class UrlCRUD(
         results = await db.execute(statement=statement)
         url_obj = results.scalar_one_or_none()
 
-        if not value:
+        value: bool | str = False
+
+        if field == 'clicks':
             # case then it is needed to increment 'click' value
             # another case is situation with fake 'deletion' of Url object
-            value = url_obj.clicks + 1
+            value: bool | str = url_obj.clicks + 1
 
         setattr(url_obj, field, value)
 
