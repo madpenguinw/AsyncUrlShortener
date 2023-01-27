@@ -14,3 +14,4 @@ isort
 flake8
 nanoid
 coloredlogs
+async-timeout

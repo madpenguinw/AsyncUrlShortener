@@ -2,14 +2,14 @@ import logging
 from typing import Any
 
 import coloredlogs
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import (APIRouter, Depends, HTTPException, Request, Response,
+                     status)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_logic.logic import get_client_address, shortener
 from db.db import get_session
-from schemas.entity import UrlBase, Url
+from schemas.entity import Url, UrlBase
 from services.entity import click_crud, url_crud
-
 
 router = APIRouter()
 
