@@ -62,7 +62,8 @@ async def url_following(
     """
     Get short URL and redirect user to the
     needed resource using full URL from db. \n
-    One can not see the redirection from Swagger.
+    One can not see the redirection from Swagger. \n
+    Make a request in a new browser page.
     """
 
     url_obj = await url_crud.get(

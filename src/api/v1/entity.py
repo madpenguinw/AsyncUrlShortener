@@ -34,15 +34,18 @@ async def create_short_url(
 
     check_url = await url_crud.get(
         db=db, value=url_in.full_url, check=True)
+
     if check_url:
         response.status_code = status.HTTP_302_FOUND
+
         logger.debug(
             'URL "%(full_url)s" is already in DB',
             {'full_url': url_in.full_url}
         )
+
         return check_url
 
-    value = shortener()  # this is short url
+    value = shortener()  # this is a short url
 
     url = await url_crud.create(
         db=db, field='short_url', value=value, obj_in=url_in
@@ -54,6 +57,54 @@ async def create_short_url(
     )
 
     return url
+
+
+@router.post(
+    '/batch',
+    response_model=list[Url],
+    status_code=status.HTTP_201_CREATED
+)
+async def batch_url_upload(
+    *,
+    url_list: list[UrlBase],
+    response: Response,
+    db: AsyncSession = Depends(get_session),
+) -> Any:
+    """
+    Upload a list of URLs to create a short version for each one.
+    """
+
+    result_list: list[Url] = []
+
+    for url_obj in url_list:
+
+        check_url = await url_crud.get(
+            db=db, value=url_obj.full_url, check=True)
+
+        if check_url:
+            # here could be another HTTP code, but I decided not to change it
+            logger.debug(
+                'URL "%(full_url)s" is already in DB',
+                {'full_url': url_obj.full_url}
+            )
+
+            result_list.append(check_url)
+
+        else:
+            value = shortener()  # this is a short url
+
+            created_url = await url_crud.create(
+                db=db, field='short_url', value=value, obj_in=url_obj
+            )
+
+            logger.debug(
+                'URL "%(full_url)s" was successfully added to the DB',
+                {'full_url': url_obj.full_url}
+            )
+
+            result_list.append(created_url)
+
+    return result_list
 
 
 @router.get(
@@ -69,7 +120,8 @@ async def get_url(
 ) -> None:
     """
     Get short URL by ID and redirect. \n
-    One can not see the redirection from Swagger.
+    One can not see the redirection from Swagger. \n
+    Make a request in a new browser page.
     """
 
     url_obj = await url_crud.get(db=db, value=url_id)
@@ -187,6 +239,7 @@ async def delete_url(
     """
 
     url_obj = await url_crud.get(db=db, value=url_id)
+
     if not url_obj:
         logger.error(
             'URL with ID="%(url_id)s" was not found in database',
@@ -207,4 +260,4 @@ async def delete_url(
         {'short_url': url_obj.short_url}
     )
 
-    return
+    return {'detail': 'URL was successfully deleted.'}
