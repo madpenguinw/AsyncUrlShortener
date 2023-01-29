@@ -7,6 +7,7 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import select
 
+from api_logic.logic import shortener
 from db.db import Base
 
 ModelType = TypeVar('ModelType', bound=Base)
@@ -40,7 +41,7 @@ class UrlCRUD(
         self, db: AsyncSession, value: Any,
         check: bool = False, short_url: bool = False
     ) -> ModelType | None:
-        """Get the object"""
+        """Get the object."""
 
         if check:
             statement = select(self._model).where(
@@ -63,7 +64,7 @@ class UrlCRUD(
         value: str = None,
         obj_in: CreateSchemaType
     ) -> ModelType:
-        """Create the object"""
+        """Create the object."""
 
         obj_in_data = jsonable_encoder(obj_in)
         db_obj = self._model(**obj_in_data)
@@ -76,6 +77,27 @@ class UrlCRUD(
         await db.refresh(db_obj)
 
         return db_obj
+
+    async def create_multi(
+        self,
+        db: AsyncSession,
+        url_list: list[CreateSchemaType]
+    ) -> ModelType:
+        """Create several objects in one time."""
+
+        data_list = jsonable_encoder(url_list)
+
+        for url_obj in data_list:
+            url_obj['short_url'] = shortener()
+
+        statement = self._model.__table__.insert().values(
+            data_list).returning(self._model)
+
+        result = await db.execute(statement=statement)
+
+        await db.commit()
+
+        return result.all()
 
     async def update(
         self,
@@ -115,7 +137,7 @@ class ClickCRUD(
     async def get_multi(
         self, url_id: int, db: AsyncSession, skip=0, limit=100
     ) -> list[ModelType]:
-        """Get all (or as many as it nedeed) Click objects"""
+        """Get all (or as many as it nedeed) Click objects."""
 
         statement = select(self._model).where(
             self._model.url_id == url_id).offset(skip).limit(limit)
@@ -129,7 +151,7 @@ class ClickCRUD(
         client: str,
         db: AsyncSession
     ) -> None:
-        """Create the Click object"""
+        """Create the Click object."""
 
         click_obj: Type[ModelType] = self._model(
             url_id=url_id,

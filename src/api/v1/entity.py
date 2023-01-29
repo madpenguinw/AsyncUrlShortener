@@ -4,6 +4,7 @@ from typing import Any
 import coloredlogs
 from fastapi import (APIRouter, Depends, HTTPException, Request, Response,
                      status)
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_logic.logic import get_client_address, shortener
@@ -59,7 +60,6 @@ async def create_short_url(
 
 @router.post(
     '/batch',
-    response_model=list[Url],
     status_code=status.HTTP_201_CREATED
 )
 async def batch_url_upload(
@@ -72,35 +72,15 @@ async def batch_url_upload(
     Upload a list of URLs to create a short version for each one.
     """
 
-    result_list: list[Url] = []
+    try:
+        result = await url_crud.create_multi(db=db, url_list=url_list)
+    except IntegrityError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail='At least one of the submitted urls is already in database'
+        )
 
-    for url_obj in url_list:
-
-        if check_url := await url_crud.get(
-                db=db, value=url_obj.full_url, check=True):
-            # here could be another HTTP code, but I decided not to change it
-            logger.debug(
-                'URL "%(full_url)s" is already in DB',
-                {'full_url': url_obj.full_url}
-            )
-
-            result_list.append(check_url)
-
-        else:
-            value = shortener()  # this is a short url
-
-            created_url = await url_crud.create(
-                db=db, field='short_url', value=value, obj_in=url_obj
-            )
-
-            logger.debug(
-                'URL "%(full_url)s" was successfully added to the DB',
-                {'full_url': url_obj.full_url}
-            )
-
-            result_list.append(created_url)
-
-    return result_list
+    return result
 
 
 @router.get(
