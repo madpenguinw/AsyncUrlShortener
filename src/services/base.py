@@ -101,26 +101,38 @@ class UrlCRUD(
 
     async def update(
         self,
-        id: int,
         field: str,
-        db: AsyncSession
+        db: AsyncSession,
+        id: int = None,
+        short_url: str = None
     ) -> ModelType:
         """Update the Url object."""
 
         if field == 'clicks':
             # case then it is needed to increment 'click' value
-            # another case is situation with fake 'deletion' of Url object
-            statement = update(self._model).where(
-                self._model.id == id).values(
-                    {field: self._model.clicks + 1}).returning(self._model)
-
+            if id:
+                statement = update(self._model).where(
+                    self._model.id == id).where(
+                        self._model.is_active == True).values(  # noqa
+                            {field: self._model.clicks + 1}).returning(
+                                self._model)
+            elif short_url:
+                statement = update(self._model).where(
+                    self._model.short_url == short_url).where(
+                        self._model.is_active == True).values(  # noqa
+                            {field: self._model.clicks + 1}
+                ).returning(self._model)
+            else:
+                raise ValueError
         else:
+            # fake 'deletion' of Url object
             statement = update(self._model).where(
-                self._model.id == id).values({field: False}).returning(
-                    self._model)
+                self._model.id == id).where(
+                    self._model.is_active == True).values(  # noqa
+                        {field: False}).returning(self._model)
 
         results = await db.execute(statement=statement)
-        url_obj = results.scalar_one_or_none()
+        url_obj = results.one_or_none()
 
         await db.commit()
 

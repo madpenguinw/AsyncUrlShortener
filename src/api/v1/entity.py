@@ -7,6 +7,8 @@ from fastapi import (APIRouter, Depends, HTTPException, Request, Response,
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api_logic.errors import (internal_server_error, url_gone_error,
+                              url_not_found_error)
 from api_logic.logic import get_client_address, shortener
 from db.db import get_session
 from schemas.entity import Url, UrlBase
@@ -100,32 +102,30 @@ async def get_url(
     Make a request in a new browser page.
     """
 
-    url_obj = await url_crud.get(db=db, value=url_id)
+    try:
+        url_obj = await url_crud.update(
+            id=url_id,
+            field='clicks',
+            db=db
+        )
+    except ValueError:
+        logger.critical('Function got wrong args')
+        internal_server_error()
 
-    if not url_obj:
+    try:
+        if not url_obj.is_active:
+            logger.error(
+                'Attempt to get deleted URL with ID="%(url_id)s"',
+                {'url_id': url_id}
+            )
+            url_gone_error()
+
+    except AttributeError:
         logger.error(
-            'URL with ID="%(url_id)s" was not found in DB',
+            'Url with ID="%(url_id)s" was not found in database',
             {'url_id': url_id}
         )
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail='Url not found'
-        )
-
-    elif not url_obj.is_active:
-        logger.error(
-            'Attempt to get deleted URL with ID="%(url_id)s"',
-            {'url_id': url_id}
-        )
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail='URL was deleted from the database.'
-        )
-
-    await url_crud.update(
-        id=url_id,
-        field='clicks',
-        db=db
-    )
+        url_not_found_error()
 
     logger.debug(
         'Short URL "%(short_url)s" was used',
@@ -173,26 +173,22 @@ async def get_url_info(
     url_obj = await url_crud.get(db=db, value=url_id)
 
     if not url_obj:
+        # Код логеров я не могу вынести для переиспользования,
+        # так как важно, в какой функции и в каком файле логгер срабатывает
         logger.error(
             'URL with ID="%(url_id)s" was not found in database',
             {'url_id': url_id}
         )
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail='Url not found'
-        )
+        url_not_found_error()
 
     elif not url_obj.is_active:
         logger.error(
             'Attempt to get deleted URL with ID="%(url_id)s"',
             {'url_id': url_id}
         )
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail='URL was deleted from the database.'
-        )
+        url_gone_error()
 
     if full_info:
-        # get clicks from db
         clicks = await click_crud.get_multi(
             url_id=url_obj.id, db=db, skip=offset, limit=max_result)
         return [url_obj, clicks]
@@ -202,7 +198,7 @@ async def get_url_info(
 
 @router.delete(
     '/{url_id}',
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_204_NO_CONTENT
 )
 async def delete_url(
     *,
@@ -214,26 +210,22 @@ async def delete_url(
     In fact, this is a fake.
     """
 
-    url_obj = await url_crud.get(db=db, value=url_id)
+    url_obj = await url_crud.update(
+        id=url_id,
+        field='is_active',
+        db=db
+    )
 
     if not url_obj:
         logger.error(
             'URL with ID="%(url_id)s" was not found in database',
             {'url_id': url_id}
         )
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail='URL not found'
-        )
-
-    await url_crud.update(
-        id=url_id,
-        field='is_active',
-        db=db
-    )
+        url_not_found_error()
 
     logger.debug(
         'Short URL "%(short_url)s" was deleted',
         {'short_url': url_obj.short_url}
     )
 
-    return {'detail': 'URL was successfully deleted.'}
+    return

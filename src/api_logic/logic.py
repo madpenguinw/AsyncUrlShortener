@@ -16,5 +16,4 @@ def get_client_address(request: Request) -> str:
 
     client: str = request.client.host + ':' + \
         str(request.client.port)
-    print(f'{client = }')
     return client

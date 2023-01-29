@@ -7,7 +7,6 @@ from fastapi.responses import JSONResponse, ORJSONResponse
 from api.v1 import base
 from core.config import app_settings
 
-
 logger = logging.getLogger(__name__)
 
 app = FastAPI(

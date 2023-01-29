@@ -8,6 +8,8 @@ from fastapi import (APIRouter, Depends, HTTPException, Request, Response,
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import select
 
+from api_logic.errors import (internal_server_error, url_gone_error,
+                              url_not_found_error)
 from api_logic.logic import get_client_address
 from db.db import get_session
 from models.entity import Click as ClickModel
@@ -66,58 +68,55 @@ async def url_following(
     Make a request in a new browser page.
     """
 
-    url_obj = await url_crud.get(
-        db=db, value=short_url, short_url=True)
+    try:
+        url_obj = await url_crud.update(
+            short_url=short_url,
+            field='clicks',
+            db=db
+        )
+    except ValueError:
+        logger.critical('Function got wrong args')
+        internal_server_error()
 
     if not url_obj:
         logger.error(
             'Short URL "%(short_url)s" was not found in database',
             {'short_url': short_url}
         )
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail='URL not found'
-        )
+        url_not_found_error()
 
     elif not url_obj.is_active:
         logger.error(
             'Attempt to get deleted URL with ID="%(id)s"',
             {'id': url_obj.id}
         )
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail='URL was deleted from the database.'
+        url_gone_error()
+
+    else:
+        logger.debug(
+            'Short URL "%(short_url)s" was used',
+            {'short_url': short_url}
         )
 
-    await url_crud.update(
-        id=url_obj.id,
-        field='clicks',
-        db=db
-    )
+        client = get_client_address(
+            request=request
+        )
 
-    logger.debug(
-        'Short URL "%(short_url)s" was used',
-        {'short_url': short_url}
-    )
+        await click_crud.create(
+            url_id=url_obj.id, client=client, db=db)
 
-    client = get_client_address(
-        request=request
-    )
+        logger.debug(
+            'Click object with short URL "%(short_url)s" was created',
+            {'short_url': short_url}
+        )
 
-    await click_crud.create(
-        url_id=url_obj.id, client=client, db=db)
+        response.headers['Location'] = url_obj.full_url
 
-    logger.debug(
-        'Click object with short URL "%(short_url)s" was created',
-        {'short_url': short_url}
-    )
+        logger.debug(
+            'Client "%(client)s" was redirected',
+            {'client': client}
+        )
 
-    response.headers['Location'] = url_obj.full_url
-
-    logger.debug(
-        'Client "%(client)s" was redirected',
-        {'client': client}
-    )
-
-    return
+        return
 
 api_router.include_router(local_router, tags=['Other methods'])
