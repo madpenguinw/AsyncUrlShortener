@@ -167,6 +167,7 @@ uvicorn main:app --reload --port:8080
 - Произвести миграцию:
 
 ```
+alembic revision --autogenerate -m 01_initial-db
 alembic upgrade head
 ```
 
