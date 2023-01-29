@@ -32,10 +32,8 @@ async def create_short_url(
     Create short version of URL.
     """
 
-    check_url = await url_crud.get(
-        db=db, value=url_in.full_url, check=True)
-
-    if check_url:
+    if check_url := await url_crud.get(
+            db=db, value=url_in.full_url, check=True):
         response.status_code = status.HTTP_302_FOUND
 
         logger.debug(
@@ -78,10 +76,8 @@ async def batch_url_upload(
 
     for url_obj in url_list:
 
-        check_url = await url_crud.get(
-            db=db, value=url_obj.full_url, check=True)
-
-        if check_url:
+        if check_url := await url_crud.get(
+                db=db, value=url_obj.full_url, check=True):
             # here could be another HTTP code, but I decided not to change it
             logger.debug(
                 'URL "%(full_url)s" is already in DB',

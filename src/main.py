@@ -5,14 +5,13 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse, ORJSONResponse
 
 from api.v1 import base
-from core import config
-from core.config import BLACKLISTED_IPS, app_settings
+from core.config import app_settings
 
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title=app_settings.app_title,
+    title=app_settings.title,
     docs_url='/api/openapi',
     openapi_url='/api/openapi.json',
     default_response_class=ORJSONResponse,
@@ -25,7 +24,7 @@ async def validate_ip(request: Request, call_next):
 
     client = str(request.client.host)
 
-    if client in BLACKLISTED_IPS:
+    if client in app_settings.blacklisted_ips:
         logger.error(
             'Client "%(client)s" is not allowed to access this resource.',
             {'client': client}
@@ -44,7 +43,7 @@ app.include_router(base.api_router, prefix='/api/v1')
 if __name__ == '__main__':
     uvicorn.run(
         'main:app',
-        host=config.PROJECT_HOST,
-        port=config.PROJECT_PORT,
+        host=app_settings.host,
+        port=app_settings.port,
         reload=True
     )

@@ -8,7 +8,7 @@ from db.db import Base
 class Url(Base):
     __tablename__ = 'urls'
     id = Column(Integer, primary_key=True)
-    full_url = Column(String(100), unique=True, nullable=False)
+    full_url = Column(String(1000), unique=True, nullable=False)
     short_url = Column(String(100), unique=True, nullable=False)
     clicks = Column(Integer, unique=False, default=0)
     is_active = Column(Boolean, default=True)

@@ -3,6 +3,7 @@ from typing import Any, Generic, Type, TypeVar
 
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import select
 
@@ -84,23 +85,22 @@ class UrlCRUD(
     ) -> ModelType:
         """Update the Url object."""
 
-        statement = select(self._model).where(
-            self._model.id == id and self._model.is_active)
-        results = await db.execute(statement=statement)
-        url_obj = results.scalar_one_or_none()
-
-        value: bool | str = False
-
         if field == 'clicks':
             # case then it is needed to increment 'click' value
             # another case is situation with fake 'deletion' of Url object
-            value: bool | str = url_obj.clicks + 1
+            statement = update(self._model).where(
+                self._model.id == id).values(
+                    {field: self._model.clicks + 1}).returning(self._model)
 
-        setattr(url_obj, field, value)
+        else:
+            statement = update(self._model).where(
+                self._model.id == id).values({field: False}).returning(
+                    self._model)
 
-        db.add(url_obj)
+        results = await db.execute(statement=statement)
+        url_obj = results.scalar_one_or_none()
+
         await db.commit()
-        await db.refresh(url_obj)
 
         return url_obj
 

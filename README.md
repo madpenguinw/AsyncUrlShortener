@@ -132,7 +132,7 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-- создать файл .env в папке src/ с переменными окружения. Шаблон:
+- создать файл .env в папке src/ с переменными окружения. Шаблон (он же находится в файле example.env):
 
 ```
 PROJECT_NAME=UrlShortener

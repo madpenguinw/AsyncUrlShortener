@@ -6,17 +6,12 @@ from pydantic import BaseSettings, PostgresDsn
 
 load_dotenv()
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-PROJECT_NAME = os.environ.get('PROJECT_NAME', 'UrlShortener')
-PROJECT_HOST = os.environ.get('PROJECT_HOST', '127.0.0.1')
-PROJECT_PORT = int(os.environ.get('PROJECT_PORT', 8080))
-
-BLACKLISTED_IPS = os.environ.get('BLACKLISTED_IPS', [])
-
 
 class AppSettings(BaseSettings):
-    app_title: str = PROJECT_NAME
+    title: str = os.environ.get('PROJECT_NAME', 'UrlShortener')
+    host: str = os.environ.get('PROJECT_HOST', '127.0.0.1')
+    port: int = int(os.environ.get('PROJECT_PORT', 8080))
+    blacklisted_ips: list[str, None] = os.environ.get('BLACKLISTED_IPS', [])
     database_dsn: PostgresDsn
 
     class Config:
