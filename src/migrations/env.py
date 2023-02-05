@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from core.config import app_settings
 from db.db import Base
+from models.entity import Url, Click  # noqa
 
 load_dotenv()
 
